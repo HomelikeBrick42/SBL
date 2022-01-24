@@ -18,10 +18,15 @@ pub struct Error {
 pub enum TokenKind {
     EndOfFile,
 
-    Integer(isize),
-    Name(String),
+    Integer,
+    Name,
 
+    Proc,
     Call,
+    Return,
+
+    OpenBrace,
+    CloseBrace,
 
     Plus,
     Minus,
@@ -30,10 +35,18 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum TokenData {
+    None,
+    Integer(isize),
+    String(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub location: SourceLocation,
     pub length: usize,
+    pub data: TokenData,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +58,9 @@ pub struct Lexer {
 lazy_static::lazy_static! {
     static ref LEXER_SINGLE_CHARS: HashMap<char, TokenKind> =
         HashMap::from_iter(IntoIter::new([
+            ('{', TokenKind::OpenBrace),
+            ('}', TokenKind::CloseBrace),
+
             ('+', TokenKind::Plus),
             ('-', TokenKind::Minus),
             ('*', TokenKind::Asterisk),
@@ -53,7 +69,9 @@ lazy_static::lazy_static! {
 
     static ref LEXER_KEYWORDS: HashMap<&'static str, TokenKind> =
         HashMap::from_iter(IntoIter::new([
+            ("proc", TokenKind::Proc),
             ("call", TokenKind::Call),
+            ("return", TokenKind::Return),
         ]));
 }
 
@@ -97,6 +115,7 @@ impl Lexer {
                     kind: TokenKind::EndOfFile,
                     location: start_location.clone(),
                     length: self.location.position - start_location.position,
+                    data: TokenData::None,
                 }),
 
                 ' ' | '\t' | '\n' | '\r' => {
@@ -157,9 +176,10 @@ impl Lexer {
                     }
 
                     Ok(Token {
-                        kind: TokenKind::Integer(int_value),
+                        kind: TokenKind::Integer,
                         location: start_location.clone(),
                         length: self.location.position - start_location.position,
+                        data: TokenData::Integer(int_value),
                     })
                 }
 
@@ -176,12 +196,14 @@ impl Lexer {
                             kind: LEXER_KEYWORDS[&name as &str].clone(),
                             location: start_location.clone(),
                             length: self.location.position - start_location.position,
+                            data: TokenData::None,
                         })
                     } else {
                         Ok(Token {
-                            kind: TokenKind::Name(name),
+                            kind: TokenKind::Name,
                             location: start_location.clone(),
                             length: self.location.position - start_location.position,
+                            data: TokenData::String(name),
                         })
                     }
                 }
@@ -193,6 +215,7 @@ impl Lexer {
                             kind: LEXER_SINGLE_CHARS[&chr].clone(),
                             location: start_location.clone(),
                             length: self.location.position - start_location.position,
+                            data: TokenData::None,
                         })
                     } else {
                         Err(Error {
@@ -250,14 +273,28 @@ pub fn compile_ops(
     ops: &mut Vec<Op>,
     functions: &mut HashMap<String, usize>,
 ) -> Result<(), Error> {
+    let mut function_block_stack = Vec::new();
+
     loop {
         let token = lexer.next_token()?;
         match &token.kind {
             TokenKind::EndOfFile => break,
 
-            TokenKind::Integer(integer) => ops.push(Op::PushInteger { value: *integer }),
+            TokenKind::Integer => {
+                let integer = if let TokenData::Integer(integer) = &token.data {
+                    integer
+                } else {
+                    unreachable!()
+                };
+                ops.push(Op::PushInteger { value: *integer })
+            }
 
-            TokenKind::Name(name) => {
+            TokenKind::Name => {
+                let name = if let TokenData::String(name) = &token.data {
+                    name
+                } else {
+                    unreachable!()
+                };
                 if functions.contains_key(name) {
                     ops.push(Op::PushFunctionPointer {
                         value: functions[name],
@@ -270,7 +307,34 @@ pub fn compile_ops(
                 }
             }
 
+            TokenKind::Proc => {
+                let name_token = lexer.expect_token(TokenKind::Name)?;
+                let name = if let TokenData::String(name) = &name_token.data {
+                    name
+                } else {
+                    unreachable!()
+                };
+
+                function_block_stack.push(ops.len());
+                ops.push(Op::Jump { location: 0 });
+
+                functions.insert(name.clone(), ops.len());
+
+                lexer.expect_token(TokenKind::OpenBrace)?;
+            }
+
             TokenKind::Call => ops.push(Op::Call),
+            TokenKind::Return => ops.push(Op::Return),
+
+            TokenKind::CloseBrace => {
+                let location = function_block_stack.pop().unwrap();
+                let current = ops.len();
+                if let Op::Jump { location } = &mut ops[location] {
+                    *location = current;
+                } else {
+                    unreachable!();
+                };
+            }
 
             TokenKind::Plus => ops.push(Op::AddInteger),
             TokenKind::Minus => ops.push(Op::SubtractInteger),

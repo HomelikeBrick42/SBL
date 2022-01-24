@@ -1,1 +1,6 @@
-1 2 3 * + print_int call
+proc print_7 {
+	1 2 3 * + print_int call
+	return
+}
+
+print_7 call
