@@ -160,6 +160,9 @@ impl Op {
 }
 
 enum BlockType {
+    Block {
+        position: usize,
+    },
     If {
         position: usize,
     },
@@ -258,10 +261,8 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                     false
                 };
                 if !sucess {
-                    // TODO: Move this to a function because its also used in the `_` arm
-                    return Err(Error {
-                        location: token.location.clone(),
-                        message: format!("Unexpected token '{:?}'", token.kind),
+                    block_stack.push(BlockType::Block {
+                        position: ops.len(),
                     });
                 }
             }
@@ -316,6 +317,8 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
 
                         *ops[*end_jump_position].get_condtional_jump_location_mut() = ops.len();
                     }
+
+                    BlockType::Block { position: _ } => {}
                 }
             }
 
