@@ -58,6 +58,30 @@ pub fn run_ops(ops: &[Op]) {
                 stack.push(Value::Integer(a / b));
             }
 
+            Op::LessThanInteger { location: _ } => {
+                let b = stack.pop().unwrap().integer();
+                let a = stack.pop().unwrap().integer();
+                stack.push(Value::Bool(a < b));
+            }
+
+            Op::GreaterThanInteger { location: _ } => {
+                let b = stack.pop().unwrap().integer();
+                let a = stack.pop().unwrap().integer();
+                stack.push(Value::Bool(a > b));
+            }
+
+            Op::LessThanEqualInteger { location: _ } => {
+                let b = stack.pop().unwrap().integer();
+                let a = stack.pop().unwrap().integer();
+                stack.push(Value::Bool(a <= b));
+            }
+
+            Op::GreaterThanEqualInteger { location: _ } => {
+                let b = stack.pop().unwrap().integer();
+                let a = stack.pop().unwrap().integer();
+                stack.push(Value::Bool(a >= b));
+            }
+
             Op::Equal { location: _ } => {
                 let value = match stack.pop().unwrap() {
                     Value::Integer(value) => value == stack.pop().unwrap().integer(),
@@ -77,6 +101,15 @@ pub fn run_ops(ops: &[Op]) {
             Op::Not { location: _ } => {
                 let value = stack.pop().unwrap().bool();
                 stack.push(Value::Bool(!value));
+            }
+
+            Op::Dup { location: _ } => {
+                let value = stack.last().unwrap().clone();
+                stack.push(value);
+            }
+
+            Op::Drop { location: _ } => {
+                stack.pop().unwrap();
             }
 
             Op::Jump {

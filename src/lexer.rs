@@ -14,6 +14,9 @@ pub enum TokenKind {
     Else,
     While,
 
+    Dup,
+    Drop,
+
     OpenBrace,
     CloseBrace,
 
@@ -23,6 +26,11 @@ pub enum TokenKind {
     Minus,
     Asterisk,
     Slash,
+
+    LessThan,
+    GreaterThan,
+    LessThanEqual,
+    GreaterThanEqual,
 
     Equal,
     NotEqual,
@@ -96,11 +104,17 @@ lazy_static::lazy_static! {
             ('*', TokenKind::Asterisk),
             ('/', TokenKind::Slash),
 
+            ('<', TokenKind::LessThan),
+            ('>', TokenKind::GreaterThan),
+
             ('=', TokenKind::Equal),
         ]));
 
     static ref LEXER_DOUBLE_CHARS: HashMap<char, HashMap<char, TokenKind>> =
         HashMap::from_iter(IntoIter::new([
+            ('<',  HashMap::from_iter(IntoIter::new([('=', TokenKind::LessThanEqual)]))),
+            ('>',  HashMap::from_iter(IntoIter::new([('=', TokenKind::GreaterThanEqual)]))),
+
             ('!',  HashMap::from_iter(IntoIter::new([('=', TokenKind::NotEqual)]))),
         ]));
 
@@ -112,6 +126,9 @@ lazy_static::lazy_static! {
             ("else", TokenKind::Else),
 
             ("while", TokenKind::While),
+
+            ("dup", TokenKind::Dup),
+            ("drop", TokenKind::Drop),
         ]));
 }
 

@@ -89,6 +89,19 @@ pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
                 context.stack.push(Type::Integer);
             }
 
+            Op::LessThanInteger { location }
+            | Op::GreaterThanInteger { location }
+            | Op::LessThanEqualInteger { location }
+            | Op::GreaterThanEqualInteger { location } => {
+                let context = contexts.last_mut().unwrap();
+                expect_types(
+                    &mut context.stack,
+                    location,
+                    &[Type::Integer, Type::Integer],
+                )?;
+                context.stack.push(Type::Bool);
+            }
+
             Op::Equal { location } | Op::NotEqual { location } => {
                 let context = contexts.last_mut().unwrap();
                 expect_type_count(&context.stack, location, 2)?;
@@ -101,6 +114,20 @@ pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
                 let context = contexts.last_mut().unwrap();
                 expect_types(&mut context.stack, location, &[Type::Bool])?;
                 context.stack.push(Type::Bool);
+            }
+
+            Op::Dup { location } => {
+                let context = contexts.last_mut().unwrap();
+                expect_type_count(&context.stack, location, 1)?;
+                let typ = context.stack.last().unwrap().clone();
+                context.stack.push(typ);
+            }
+
+            Op::Drop { location } => {
+                let context = contexts.last_mut().unwrap();
+                expect_type_count(&context.stack, location, 1)?;
+                let typ = context.stack[context.stack.len() - 1].clone();
+                expect_types(&mut context.stack, location, &[typ.clone()])?;
             }
 
             Op::Jump {

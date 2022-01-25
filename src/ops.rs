@@ -24,6 +24,18 @@ pub enum Op {
     DivideInteger {
         location: SourceLocation,
     },
+    LessThanInteger {
+        location: SourceLocation,
+    },
+    GreaterThanInteger {
+        location: SourceLocation,
+    },
+    LessThanEqualInteger {
+        location: SourceLocation,
+    },
+    GreaterThanEqualInteger {
+        location: SourceLocation,
+    },
     Equal {
         location: SourceLocation,
     },
@@ -31,6 +43,12 @@ pub enum Op {
         location: SourceLocation,
     },
     Not {
+        location: SourceLocation,
+    },
+    Dup {
+        location: SourceLocation,
+    },
+    Drop {
         location: SourceLocation,
     },
     Jump {
@@ -55,9 +73,15 @@ impl Op {
             Op::SubtractInteger { location } => location.clone(),
             Op::MultiplyInteger { location } => location.clone(),
             Op::DivideInteger { location } => location.clone(),
+            Op::LessThanInteger { location } => location.clone(),
+            Op::GreaterThanInteger { location } => location.clone(),
+            Op::LessThanEqualInteger { location } => location.clone(),
+            Op::GreaterThanEqualInteger { location } => location.clone(),
             Op::Equal { location } => location.clone(),
             Op::NotEqual { location } => location.clone(),
             Op::Not { location } => location.clone(),
+            Op::Dup { location } => location.clone(),
+            Op::Drop { location } => location.clone(),
             Op::Jump {
                 location,
                 position: _,
@@ -242,6 +266,14 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                 }
             }
 
+            TokenKind::Dup => ops.push(Op::Dup {
+                location: token.location,
+            }),
+
+            TokenKind::Drop => ops.push(Op::Drop {
+                location: token.location,
+            }),
+
             TokenKind::CloseBrace => {
                 let block_type = block_stack.pop().unwrap();
                 match &block_type {
@@ -300,6 +332,22 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
             }),
 
             TokenKind::Slash => ops.push(Op::DivideInteger {
+                location: token.location,
+            }),
+
+            TokenKind::LessThan => ops.push(Op::LessThanInteger {
+                location: token.location,
+            }),
+
+            TokenKind::GreaterThan => ops.push(Op::GreaterThanInteger {
+                location: token.location,
+            }),
+
+            TokenKind::LessThanEqual => ops.push(Op::LessThanEqualInteger {
+                location: token.location,
+            }),
+
+            TokenKind::GreaterThanEqual => ops.push(Op::GreaterThanEqualInteger {
                 location: token.location,
             }),
 
