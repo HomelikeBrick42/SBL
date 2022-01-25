@@ -9,7 +9,7 @@ pub enum TokenKind {
     Integer,
     Name,
 
-    PrintInt,
+    Print,
     If,
     Else,
     While,
@@ -120,7 +120,7 @@ lazy_static::lazy_static! {
 
     static ref LEXER_KEYWORDS: HashMap<&'static str, TokenKind> =
         HashMap::from_iter(IntoIter::new([
-            ("print_int", TokenKind::PrintInt),
+            ("print", TokenKind::Print),
 
             ("if", TokenKind::If),
             ("else", TokenKind::Else),

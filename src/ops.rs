@@ -212,7 +212,7 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                 unimplemented!()
             }
 
-            TokenKind::PrintInt => ops.push(Op::Print {
+            TokenKind::Print => ops.push(Op::Print {
                 location: token.location,
             }),
 

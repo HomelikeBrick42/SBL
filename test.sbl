@@ -1,4 +1,6 @@
 1 while dup 10 <= {
-	dup print_int
+	dup 5 < if {
+		dup print
+	}
 	1 +
 } drop
