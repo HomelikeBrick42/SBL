@@ -46,59 +46,101 @@ fn expect_types(
     Ok(())
 }
 
-pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
-    let mut ip = 0;
-    let mut stack = Vec::new();
+#[derive(Debug, Clone, PartialEq)]
+struct Context {
+    pub ip: usize,
+    pub stack: Vec<Type>,
+}
 
-    loop {
-        match &ops[ip] {
-            Op::Exit { location: _ } => break,
+pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
+    let mut contexts = Vec::new();
+    contexts.push(Context {
+        ip: 0,
+        stack: Vec::new(),
+    });
+
+    while contexts.len() > 0 {
+        match &ops[contexts.last().unwrap().ip] {
+            Op::Exit { location: _ } => {
+                contexts.pop().unwrap();
+                continue;
+            }
 
             Op::PushInteger {
                 location: _,
                 value: _,
-            } => stack.push(Type::Integer),
+            } => {
+                let context = contexts.last_mut().unwrap();
+                context.stack.push(Type::Integer);
+            }
 
             Op::AddInteger { location }
             | Op::SubtractInteger { location }
             | Op::MultiplyInteger { location }
             | Op::DivideInteger { location } => {
-                expect_types(&mut stack, location, &[Type::Integer, Type::Integer])?;
-                stack.push(Type::Integer);
+                let context = contexts.last_mut().unwrap();
+                expect_types(
+                    &mut context.stack,
+                    location,
+                    &[Type::Integer, Type::Integer],
+                )?;
+                context.stack.push(Type::Integer);
             }
 
             Op::Equal { location } | Op::NotEqual { location } => {
-                expect_type_count(&stack, location, 2)?;
-                let typ = stack[stack.len() - 2].clone();
-                expect_types(&mut stack, location, &[typ.clone(), typ.clone()])?;
-                stack.push(Type::Bool);
+                let context = contexts.last_mut().unwrap();
+                expect_type_count(&context.stack, location, 2)?;
+                let typ = context.stack[context.stack.len() - 2].clone();
+                expect_types(&mut context.stack, location, &[typ.clone(), typ.clone()])?;
+                context.stack.push(Type::Bool);
             }
 
             Op::Not { location } => {
-                expect_types(&mut stack, location, &[Type::Bool])?;
-                stack.push(Type::Bool);
+                let context = contexts.last_mut().unwrap();
+                expect_types(&mut context.stack, location, &[Type::Bool])?;
+                context.stack.push(Type::Bool);
             }
 
             Op::Jump {
                 location: _,
                 position,
             } => {
-                ip = *position;
+                let context = contexts.last_mut().unwrap();
+                context.ip = *position;
                 continue;
             }
 
-            Op::ConditonalJump {
-                location: _,
-                position: _,
-            } => unimplemented!(),
+            Op::ConditonalJump { location, position } => {
+                expect_types(
+                    &mut contexts.last_mut().unwrap().stack,
+                    location,
+                    &[Type::Bool],
+                )?;
+
+                let context_a = Context {
+                    ip: *position,
+                    stack: contexts.last().unwrap().stack.clone(),
+                };
+                let context_b = Context {
+                    ip: contexts.last().unwrap().ip + 1,
+                    stack: contexts.last().unwrap().stack.clone(),
+                };
+
+                contexts.pop().unwrap();
+                contexts.push(context_a);
+                contexts.push(context_b);
+
+                continue;
+            }
 
             Op::Print { location } => {
-                expect_type_count(&stack, location, 1)?;
-                let typ = stack[stack.len() - 1].clone();
-                expect_types(&mut stack, location, &[typ.clone()])?;
+                let context = contexts.last_mut().unwrap();
+                expect_type_count(&context.stack, location, 1)?;
+                let typ = context.stack[context.stack.len() - 1].clone();
+                expect_types(&mut context.stack, location, &[typ.clone()])?;
             }
         }
-        ip += 1;
+        contexts.last_mut().unwrap().ip += 1;
     }
 
     Ok(())

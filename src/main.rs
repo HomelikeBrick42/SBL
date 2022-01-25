@@ -55,6 +55,12 @@ fn main() {
             .location,
     });
 
+    /*
+    for (index, op) in ops.iter().enumerate() {
+        println!("{} = {:?}", index, op);
+    }
+    */
+
     type_check_ops(&ops).unwrap_or_else(|error| {
         eprintln!(
             "{}:{}:{}: {}",
