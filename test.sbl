@@ -1,6 +1,13 @@
 proc print_7 {
-	1 2 3 * + print_int call
-	return
+	proc do_something {
+		1 2 3 * +
+	}
+
+	do_something call print_int call
 }
 
-print_7 call
+1 2 = if {
+	print_7 call
+} else {
+	5 print_int call
+}

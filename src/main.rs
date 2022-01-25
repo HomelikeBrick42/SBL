@@ -24,14 +24,21 @@ pub enum TokenKind {
     Proc,
     Call,
     Return,
+    If,
+    Else,
 
     OpenBrace,
     CloseBrace,
+
+    Not,
 
     Plus,
     Minus,
     Asterisk,
     Slash,
+
+    Equal,
+    NotEqual,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +46,40 @@ pub enum TokenData {
     None,
     Integer(isize),
     String(String),
+}
+
+impl TokenData {
+    pub fn get_integer(self: &TokenData) -> isize {
+        if let TokenData::Integer(value) = self {
+            *value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_integer_mut(self: &mut TokenData) -> &mut isize {
+        if let TokenData::Integer(value) = self {
+            value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_string(self: &TokenData) -> String {
+        if let TokenData::String(value) = self {
+            value.clone()
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_string_mut(self: &mut TokenData) -> &mut String {
+        if let TokenData::String(value) = self {
+            value
+        } else {
+            unreachable!()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,10 +102,19 @@ lazy_static::lazy_static! {
             ('{', TokenKind::OpenBrace),
             ('}', TokenKind::CloseBrace),
 
+            ('!', TokenKind::Not),
+
             ('+', TokenKind::Plus),
             ('-', TokenKind::Minus),
             ('*', TokenKind::Asterisk),
             ('/', TokenKind::Slash),
+
+            ('=', TokenKind::Equal),
+        ]));
+
+    static ref LEXER_DOUBLE_CHARS: HashMap<char, HashMap<char, TokenKind>> =
+        HashMap::from_iter(IntoIter::new([
+            ('!',  HashMap::from_iter(IntoIter::new([('=', TokenKind::NotEqual)]))),
         ]));
 
     static ref LEXER_KEYWORDS: HashMap<&'static str, TokenKind> =
@@ -72,6 +122,8 @@ lazy_static::lazy_static! {
             ("proc", TokenKind::Proc),
             ("call", TokenKind::Call),
             ("return", TokenKind::Return),
+            ("if", TokenKind::If),
+            ("else", TokenKind::Else),
         ]));
 }
 
@@ -210,19 +262,32 @@ impl Lexer {
 
                 _ => {
                     let chr = self.next_char();
+
+                    if LEXER_DOUBLE_CHARS.contains_key(&chr) {
+                        if LEXER_DOUBLE_CHARS[&chr].contains_key(&self.peek_char()) {
+                            let chr2 = self.next_char();
+                            return Ok(Token {
+                                kind: LEXER_DOUBLE_CHARS[&chr][&chr2].clone(),
+                                location: start_location.clone(),
+                                length: self.location.position - start_location.position,
+                                data: TokenData::None,
+                            });
+                        }
+                    }
+
                     if LEXER_SINGLE_CHARS.contains_key(&chr) {
-                        Ok(Token {
+                        return Ok(Token {
                             kind: LEXER_SINGLE_CHARS[&chr].clone(),
                             location: start_location.clone(),
                             length: self.location.position - start_location.position,
                             data: TokenData::None,
-                        })
-                    } else {
-                        Err(Error {
-                            location: start_location,
-                            message: format!("Unknown character '{}'", chr),
-                        })
+                        });
                     }
+
+                    Err(Error {
+                        location: start_location,
+                        message: format!("Unknown character '{}'", chr),
+                    })
                 }
             };
         }
@@ -255,25 +320,193 @@ impl Lexer {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Op {
-    Exit,
-    PushInteger { value: isize },
-    PushFunctionPointer { value: usize },
-    AddInteger,
-    SubtractInteger,
-    MultiplyInteger,
-    DivideInteger,
-    Call,
-    Return,
-    Jump { location: usize },
-    PrintInt,
+    Exit {
+        location: SourceLocation,
+    },
+    PushInteger {
+        location: SourceLocation,
+        value: isize,
+    },
+    PushFunctionPointer {
+        location: SourceLocation,
+        value: usize,
+    },
+    AddInteger {
+        location: SourceLocation,
+    },
+    SubtractInteger {
+        location: SourceLocation,
+    },
+    MultiplyInteger {
+        location: SourceLocation,
+    },
+    DivideInteger {
+        location: SourceLocation,
+    },
+    Equal {
+        location: SourceLocation,
+    },
+    NotEqual {
+        location: SourceLocation,
+    },
+    Not {
+        location: SourceLocation,
+    },
+    Call {
+        location: SourceLocation,
+    },
+    Return {
+        location: SourceLocation,
+    },
+    Jump {
+        location: SourceLocation,
+        position: usize,
+    },
+    ConditonalJump {
+        location: SourceLocation,
+        position: usize,
+    },
+    PrintInt {
+        location: SourceLocation,
+    },
+}
+
+impl Op {
+    pub fn get_location(self: &Op) -> SourceLocation {
+        match self {
+            Op::Exit { location } => location.clone(),
+            Op::PushInteger { location, value: _ } => location.clone(),
+            Op::PushFunctionPointer { location, value: _ } => location.clone(),
+            Op::AddInteger { location } => location.clone(),
+            Op::SubtractInteger { location } => location.clone(),
+            Op::MultiplyInteger { location } => location.clone(),
+            Op::DivideInteger { location } => location.clone(),
+            Op::Equal { location } => location.clone(),
+            Op::NotEqual { location } => location.clone(),
+            Op::Not { location } => location.clone(),
+            Op::Call { location } => location.clone(),
+            Op::Return { location } => location.clone(),
+            Op::Jump {
+                location,
+                position: _,
+            } => location.clone(),
+            Op::ConditonalJump {
+                location,
+                position: _,
+            } => location.clone(),
+            Op::PrintInt { location } => location.clone(),
+        }
+    }
+
+    pub fn get_push_integer_value(self: &Op) -> isize {
+        if let Op::PushInteger { location: _, value } = self {
+            *value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_push_integer_value_mut(self: &mut Op) -> &mut isize {
+        if let Op::PushInteger { location: _, value } = self {
+            value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_push_function_pointer_value(self: &Op) -> usize {
+        if let Op::PushFunctionPointer { location: _, value } = self {
+            *value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_push_function_pointer_value_mut(self: &mut Op) -> &mut usize {
+        if let Op::PushFunctionPointer { location: _, value } = self {
+            value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_jump_location(self: &Op) -> usize {
+        if let Op::Jump {
+            location: _,
+            position,
+        } = self
+        {
+            *position
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_jump_location_mut(self: &mut Op) -> &mut usize {
+        if let Op::Jump {
+            location: _,
+            position,
+        } = self
+        {
+            position
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_condtional_jump_location(self: &Op) -> usize {
+        if let Op::ConditonalJump {
+            location: _,
+            position,
+        } = self
+        {
+            *position
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_condtional_jump_location_mut(self: &mut Op) -> &mut usize {
+        if let Op::ConditonalJump {
+            location: _,
+            position,
+        } = self
+        {
+            position
+        } else {
+            unreachable!()
+        }
+    }
+}
+
+pub enum BlockType {
+    Function { position: usize },
+    If { position: usize },
+    Else { skip_position: usize },
 }
 
 pub fn compile_ops(
     lexer: &mut Lexer,
     ops: &mut Vec<Op>,
-    functions: &mut HashMap<String, usize>,
+    functions: &mut Vec<HashMap<String, usize>>,
 ) -> Result<(), Error> {
-    let mut function_block_stack = Vec::new();
+    let mut block_stack = Vec::new();
+
+    fn get_function_location(
+        functions: &mut Vec<HashMap<String, usize>>,
+        name: &String,
+        location: SourceLocation,
+    ) -> Result<usize, Error> {
+        for scope in functions.iter().rev() {
+            if scope.contains_key(name) {
+                return Ok(scope[name]);
+            }
+        }
+        Err(Error {
+            location: location,
+            message: format!("Unknown name '{}'", name),
+        })
+    }
 
     loop {
         let token = lexer.next_token()?;
@@ -281,65 +514,124 @@ pub fn compile_ops(
             TokenKind::EndOfFile => break,
 
             TokenKind::Integer => {
-                let integer = if let TokenData::Integer(integer) = &token.data {
-                    integer
-                } else {
-                    unreachable!()
-                };
-                ops.push(Op::PushInteger { value: *integer })
+                let integer = token.data.get_integer();
+                ops.push(Op::PushInteger {
+                    location: token.location,
+                    value: integer,
+                })
             }
 
             TokenKind::Name => {
-                let name = if let TokenData::String(name) = &token.data {
-                    name
-                } else {
-                    unreachable!()
-                };
-                if functions.contains_key(name) {
-                    ops.push(Op::PushFunctionPointer {
-                        value: functions[name],
-                    })
-                } else {
-                    return Err(Error {
-                        location: token.location.clone(),
-                        message: format!("Unknown name '{}'", name),
-                    });
-                }
+                let name = token.data.get_string();
+                ops.push(Op::PushFunctionPointer {
+                    location: token.location.clone(),
+                    value: get_function_location(functions, &name, token.location)?,
+                });
             }
 
             TokenKind::Proc => {
                 let name_token = lexer.expect_token(TokenKind::Name)?;
-                let name = if let TokenData::String(name) = &name_token.data {
-                    name
-                } else {
-                    unreachable!()
-                };
+                let name = name_token.data.get_string();
 
-                function_block_stack.push(ops.len());
-                ops.push(Op::Jump { location: 0 });
+                block_stack.push(BlockType::Function {
+                    position: ops.len(),
+                });
+                ops.push(Op::Jump {
+                    location: token.location,
+                    position: 0,
+                });
 
-                functions.insert(name.clone(), ops.len());
+                let scope = functions.last_mut().unwrap();
+                scope.insert(name, ops.len());
 
                 lexer.expect_token(TokenKind::OpenBrace)?;
+                functions.push(HashMap::new());
             }
 
-            TokenKind::Call => ops.push(Op::Call),
-            TokenKind::Return => ops.push(Op::Return),
+            TokenKind::Call => ops.push(Op::Call {
+                location: token.location,
+            }),
+
+            TokenKind::Return => ops.push(Op::Return {
+                location: token.location,
+            }),
+
+            TokenKind::If => {
+                ops.push(Op::Not {
+                    location: token.location.clone(),
+                });
+                block_stack.push(BlockType::If {
+                    position: ops.len(),
+                });
+                ops.push(Op::ConditonalJump {
+                    location: token.location,
+                    position: 0,
+                });
+                lexer.expect_token(TokenKind::OpenBrace)?;
+                functions.push(HashMap::new());
+            }
 
             TokenKind::CloseBrace => {
-                let location = function_block_stack.pop().unwrap();
-                let current = ops.len();
-                if let Op::Jump { location } = &mut ops[location] {
-                    *location = current;
-                } else {
-                    unreachable!();
-                };
+                let block_type = block_stack.pop().unwrap();
+                functions.pop().unwrap();
+                match &block_type {
+                    BlockType::Function { position } => {
+                        ops.push(Op::Return {
+                            location: token.location,
+                        });
+                        *ops[*position].get_jump_location_mut() = ops.len();
+                    }
+
+                    BlockType::If { position } => {
+                        if lexer.peek_kind()? == TokenKind::Else {
+                            let else_token = lexer.next_token()?;
+                            block_stack.push(BlockType::Else {
+                                skip_position: ops.len(),
+                            });
+                            ops.push(Op::Jump {
+                                location: else_token.location.clone(),
+                                position: 0,
+                            });
+                            lexer.expect_token(TokenKind::OpenBrace)?;
+                            functions.push(HashMap::new());
+                        }
+
+                        *ops[*position].get_condtional_jump_location_mut() = ops.len();
+                    }
+
+                    BlockType::Else { skip_position } => {
+                        *ops[*skip_position].get_jump_location_mut() = ops.len();
+                    }
+                }
             }
 
-            TokenKind::Plus => ops.push(Op::AddInteger),
-            TokenKind::Minus => ops.push(Op::SubtractInteger),
-            TokenKind::Asterisk => ops.push(Op::MultiplyInteger),
-            TokenKind::Slash => ops.push(Op::DivideInteger),
+            TokenKind::Plus => ops.push(Op::AddInteger {
+                location: token.location,
+            }),
+
+            TokenKind::Minus => ops.push(Op::SubtractInteger {
+                location: token.location,
+            }),
+
+            TokenKind::Asterisk => ops.push(Op::MultiplyInteger {
+                location: token.location,
+            }),
+
+            TokenKind::Slash => ops.push(Op::DivideInteger {
+                location: token.location,
+            }),
+
+            TokenKind::Equal => ops.push(Op::Equal {
+                location: token.location,
+            }),
+
+            TokenKind::NotEqual => ops.push(Op::NotEqual {
+                location: token.location,
+            }),
+
+            TokenKind::Not => ops.push(Op::Not {
+                location: token.location,
+            }),
 
             _ => {
                 return Err(Error {
@@ -354,7 +646,34 @@ pub fn compile_ops(
 
 pub enum Value {
     Integer(isize),
+    Bool(bool),
     FunctionPointer(usize),
+}
+
+impl Value {
+    pub fn integer(self: Value) -> isize {
+        if let Value::Integer(value) = self {
+            value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn bool(self: Value) -> bool {
+        if let Value::Bool(value) = self {
+            value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn function_pointer(self: Value) -> usize {
+        if let Value::FunctionPointer(value) = self {
+            value
+        } else {
+            unreachable!()
+        }
+    }
 }
 
 pub fn run_ops(ops: &[Op]) {
@@ -363,87 +682,100 @@ pub fn run_ops(ops: &[Op]) {
     let mut return_stack = Vec::new();
 
     loop {
-        match ops[ip] {
-            Op::Exit => break,
+        match &ops[ip] {
+            Op::Exit { location: _ } => break,
 
-            Op::PushInteger { value } => stack.push(Value::Integer(value)),
+            Op::PushInteger { location: _, value } => stack.push(Value::Integer(*value)),
 
-            Op::PushFunctionPointer { value } => stack.push(Value::FunctionPointer(value)),
+            Op::PushFunctionPointer { location: _, value } => {
+                stack.push(Value::FunctionPointer(*value))
+            }
 
-            Op::AddInteger => {
-                let b = match stack.pop().unwrap() {
-                    Value::Integer(value) => value,
-                    _ => unreachable!(),
-                };
-                let a = match stack.pop().unwrap() {
-                    Value::Integer(value) => value,
-                    _ => unreachable!(),
-                };
+            Op::AddInteger { location: _ } => {
+                let b = stack.pop().unwrap().integer();
+                let a = stack.pop().unwrap().integer();
                 stack.push(Value::Integer(a + b));
             }
 
-            Op::SubtractInteger => {
-                let b = match stack.pop().unwrap() {
-                    Value::Integer(value) => value,
-                    _ => unreachable!(),
-                };
-                let a = match stack.pop().unwrap() {
-                    Value::Integer(value) => value,
-                    _ => unreachable!(),
-                };
+            Op::SubtractInteger { location: _ } => {
+                let b = stack.pop().unwrap().integer();
+                let a = stack.pop().unwrap().integer();
                 stack.push(Value::Integer(a - b));
             }
 
-            Op::MultiplyInteger => {
-                let b = match stack.pop().unwrap() {
-                    Value::Integer(value) => value,
-                    _ => unreachable!(),
-                };
-                let a = match stack.pop().unwrap() {
-                    Value::Integer(value) => value,
-                    _ => unreachable!(),
-                };
+            Op::MultiplyInteger { location: _ } => {
+                let b = stack.pop().unwrap().integer();
+                let a = stack.pop().unwrap().integer();
                 stack.push(Value::Integer(a * b));
             }
 
-            Op::DivideInteger => {
-                let b = match stack.pop().unwrap() {
-                    Value::Integer(value) => value,
-                    _ => unreachable!(),
-                };
-                let a = match stack.pop().unwrap() {
-                    Value::Integer(value) => value,
-                    _ => unreachable!(),
-                };
+            Op::DivideInteger { location: _ } => {
+                let b = stack.pop().unwrap().integer();
+                let a = stack.pop().unwrap().integer();
                 stack.push(Value::Integer(a / b));
             }
 
-            Op::Call => {
-                let location = stack.pop().unwrap();
+            Op::Equal { location: _ } => {
+                let value = match stack.pop().unwrap() {
+                    Value::Integer(value) => value == stack.pop().unwrap().integer(),
+                    Value::Bool(value) => value == stack.pop().unwrap().bool(),
+                    Value::FunctionPointer(value) => {
+                        value == stack.pop().unwrap().function_pointer()
+                    }
+                };
+                stack.push(Value::Bool(value));
+            }
+
+            Op::NotEqual { location: _ } => {
+                let value = match stack.pop().unwrap() {
+                    Value::Integer(value) => value != stack.pop().unwrap().integer(),
+                    Value::Bool(value) => value != stack.pop().unwrap().bool(),
+                    Value::FunctionPointer(value) => {
+                        value != stack.pop().unwrap().function_pointer()
+                    }
+                };
+                stack.push(Value::Bool(value));
+            }
+
+            Op::Not { location: _ } => {
+                let value = stack.pop().unwrap().bool();
+                stack.push(Value::Bool(!value));
+            }
+
+            Op::Call { location: _ } => {
+                let location = stack.pop().unwrap().function_pointer();
                 return_stack.push(ip + 1);
-                match location {
-                    Value::FunctionPointer(location) => ip = location,
-                    _ => unreachable!(),
-                }
-                continue;
-            }
-
-            Op::Return => {
-                ip = return_stack.pop().unwrap();
-                continue;
-            }
-
-            Op::Jump { location } => {
                 ip = location;
                 continue;
             }
 
-            Op::PrintInt => {
-                let value = stack.pop().unwrap();
-                match value {
-                    Value::Integer(value) => println!("{:?}", value),
-                    _ => unreachable!(),
+            Op::Return { location: _ } => {
+                ip = return_stack.pop().unwrap();
+                continue;
+            }
+
+            Op::Jump {
+                location: _,
+                position,
+            } => {
+                ip = *position;
+                continue;
+            }
+
+            Op::ConditonalJump {
+                location: _,
+                position,
+            } => {
+                let condition = stack.pop().unwrap().bool();
+                if condition {
+                    ip = *position;
+                    continue;
                 }
+            }
+
+            Op::PrintInt { location: _ } => {
+                let value = stack.pop().unwrap().integer();
+                println!("{:?}", value);
             }
         }
         ip += 1;
@@ -485,25 +817,40 @@ fn main() {
     let mut ops = Vec::new();
 
     let jump_op_location = ops.len();
-    ops.push(Op::Jump { location: 0 });
+    ops.push(Op::Jump {
+        location: SourceLocation {
+            filepath: "buitin.sbl".to_string(),
+            position: 0,
+            line: 1,
+            column: 1,
+        },
+        position: 0,
+    });
 
     let print_int_location = ops.len();
-    ops.push(Op::PrintInt);
-    ops.push(Op::Return);
+    ops.push(Op::PrintInt {
+        location: SourceLocation {
+            filepath: "buitin.sbl".to_string(),
+            position: 0,
+            line: 1,
+            column: 1,
+        },
+    });
+    ops.push(Op::Return {
+        location: SourceLocation {
+            filepath: "buitin.sbl".to_string(),
+            position: 0,
+            line: 1,
+            column: 1,
+        },
+    });
 
-    {
-        let ops_len = ops.len();
-        if let Op::Jump { location } = &mut ops[jump_op_location] {
-            *location = ops_len
-        } else {
-            unreachable!()
-        }
-    }
+    *ops[jump_op_location].get_jump_location_mut() = ops.len();
 
-    let mut functions = HashMap::<String, usize>::from_iter(IntoIter::new([(
+    let mut functions = Vec::from([HashMap::<String, usize>::from_iter(IntoIter::new([(
         "print_int".to_string(),
         print_int_location,
-    )]));
+    )]))]);
 
     compile_ops(&mut lexer, &mut ops, &mut functions).unwrap_or_else(|error| {
         eprintln!(
@@ -513,7 +860,21 @@ fn main() {
         exit(1)
     });
 
-    ops.push(Op::Exit);
+    ops.push(Op::Exit {
+        location: lexer
+            .expect_token(TokenKind::EndOfFile)
+            .unwrap_or_else(|error| {
+                eprintln!(
+                    "{}:{}:{}: {}",
+                    error.location.filepath,
+                    error.location.line,
+                    error.location.column,
+                    error.message
+                );
+                exit(1)
+            })
+            .location,
+    });
 
     /*
     for (index, op) in ops.iter().enumerate() {
