@@ -48,6 +48,7 @@ fn expect_types(
 
 #[derive(Debug, Clone, PartialEq)]
 struct Context {
+    pub start_ip: usize,
     pub ip: usize,
     pub stack: Vec<Type>,
 }
@@ -55,6 +56,7 @@ struct Context {
 pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
     let mut contexts = Vec::new();
     contexts.push(Context {
+        start_ip: 0,
         ip: 0,
         stack: Vec::new(),
     });
@@ -111,24 +113,21 @@ pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
             }
 
             Op::ConditonalJump { location, position } => {
-                expect_types(
-                    &mut contexts.last_mut().unwrap().stack,
-                    location,
-                    &[Type::Bool],
-                )?;
+                let context = contexts.last_mut().unwrap();
 
-                let context_a = Context {
-                    ip: *position,
-                    stack: contexts.last().unwrap().stack.clone(),
-                };
-                let context_b = Context {
-                    ip: contexts.last().unwrap().ip + 1,
-                    stack: contexts.last().unwrap().stack.clone(),
-                };
+                expect_types(&mut context.stack, location, &[Type::Bool])?;
 
-                contexts.pop().unwrap();
-                contexts.push(context_a);
-                contexts.push(context_b);
+                let ip = context.ip;
+                context.ip = *position;
+
+                if context.start_ip != ip {
+                    let new_context = Context {
+                        start_ip: ip,
+                        ip: ip + 1,
+                        stack: context.stack.clone(),
+                    };
+                    contexts.push(new_context);
+                }
 
                 continue;
             }

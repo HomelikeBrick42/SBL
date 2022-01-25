@@ -12,6 +12,7 @@ pub enum TokenKind {
     PrintInt,
     If,
     Else,
+    While,
 
     OpenBrace,
     CloseBrace,
@@ -109,6 +110,8 @@ lazy_static::lazy_static! {
 
             ("if", TokenKind::If),
             ("else", TokenKind::Else),
+
+            ("while", TokenKind::While),
         ]));
 }
 

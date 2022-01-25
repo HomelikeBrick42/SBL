@@ -135,9 +135,20 @@ impl Op {
     }
 }
 
-pub enum BlockType {
-    If { position: usize },
-    Else { skip_position: usize },
+enum BlockType {
+    If {
+        position: usize,
+    },
+    Else {
+        skip_position: usize,
+    },
+    While {
+        position: usize,
+    },
+    WhileBody {
+        begin_position: usize,
+        end_jump_position: usize,
+    },
 }
 
 pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
@@ -195,6 +206,42 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                 lexer.expect_token(TokenKind::OpenBrace)?;
             }
 
+            TokenKind::While => block_stack.push(BlockType::While {
+                position: ops.len(),
+            }),
+
+            TokenKind::OpenBrace => {
+                let sucess = if let Some(block) = block_stack.last() {
+                    if let BlockType::While { position } = block {
+                        let position = *position;
+                        block_stack.pop().unwrap();
+                        ops.push(Op::Not {
+                            location: token.location.clone(),
+                        });
+                        block_stack.push(BlockType::WhileBody {
+                            begin_position: position,
+                            end_jump_position: ops.len(),
+                        });
+                        ops.push(Op::ConditonalJump {
+                            location: token.location.clone(),
+                            position: 0,
+                        });
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                if !sucess {
+                    // TODO: Move this to a function because its also used in the `_` arm
+                    return Err(Error {
+                        location: token.location.clone(),
+                        message: format!("Unexpected token '{:?}'", token.kind),
+                    });
+                }
+            }
+
             TokenKind::CloseBrace => {
                 let block_type = block_stack.pop().unwrap();
                 match &block_type {
@@ -216,6 +263,26 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
 
                     BlockType::Else { skip_position } => {
                         *ops[*skip_position].get_jump_location_mut() = ops.len();
+                    }
+
+                    BlockType::While { position: _ } => {
+                        // TODO: Move this to a function because its also used in the `_` arm
+                        return Err(Error {
+                            location: token.location.clone(),
+                            message: format!("Unexpected token '{:?}'", token.kind),
+                        });
+                    }
+
+                    BlockType::WhileBody {
+                        begin_position,
+                        end_jump_position,
+                    } => {
+                        ops.push(Op::Jump {
+                            location: token.location,
+                            position: *begin_position,
+                        });
+
+                        *ops[*end_jump_position].get_condtional_jump_location_mut() = ops.len();
                     }
                 }
             }
