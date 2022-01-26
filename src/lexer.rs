@@ -19,6 +19,7 @@ pub enum TokenKind {
 
     Dup,
     Drop,
+    Swap,
 
     OpenParenthesis,
     CloseParenthesis,
@@ -136,6 +137,7 @@ lazy_static::lazy_static! {
 
             ("dup", TokenKind::Dup),
             ("drop", TokenKind::Drop),
+            ("swap", TokenKind::Swap),
 
             ("proc", TokenKind::Proc),
             ("call", TokenKind::Call),

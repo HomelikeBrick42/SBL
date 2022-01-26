@@ -54,6 +54,9 @@ pub enum Op {
     Drop {
         location: SourceLocation,
     },
+    Swap {
+        location: SourceLocation,
+    },
     Jump {
         location: SourceLocation,
         position: usize,
@@ -98,6 +101,7 @@ impl Op {
             Op::Not { location } => location.clone(),
             Op::Dup { location } => location.clone(),
             Op::Drop { location } => location.clone(),
+            Op::Swap { location } => location.clone(),
             Op::Jump {
                 location,
                 position: _,
@@ -367,6 +371,10 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
             }),
 
             TokenKind::Drop => ops.push(Op::Drop {
+                location: token.location,
+            }),
+
+            TokenKind::Swap => ops.push(Op::Swap {
                 location: token.location,
             }),
 

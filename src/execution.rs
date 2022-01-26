@@ -132,6 +132,13 @@ pub fn run_ops(ops: &[Op]) {
                 stack.pop().unwrap();
             }
 
+            Op::Swap { location: _ } => {
+                let a = stack.pop().unwrap();
+                let b = stack.pop().unwrap();
+                stack.push(a);
+                stack.push(b);
+            }
+
             Op::Jump {
                 location: _,
                 position,

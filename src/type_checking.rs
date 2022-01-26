@@ -158,8 +158,15 @@ pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
 
             Op::Drop { location } => {
                 expect_type_count(&context.stack, location, 1)?;
-                let typ = context.stack[context.stack.len() - 1].clone().0;
-                expect_types(&mut context.stack, location, &[typ.clone()])?;
+                context.stack.pop().unwrap();
+            }
+
+            Op::Swap { location } => {
+                expect_type_count(&context.stack, location, 2)?;
+                let a = context.stack.pop().unwrap().0;
+                let b = context.stack.pop().unwrap().0;
+                context.stack.push((a, location.clone()));
+                context.stack.push((b, location.clone()));
             }
 
             Op::Jump {
