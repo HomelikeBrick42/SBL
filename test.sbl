@@ -2,7 +2,13 @@ proc plus(int int) -> (int) {
 	+
 }
 
+proc do_something(int proc(int int) -> (int)) -> (int) {
+	5 swap call
+}
+
 proc main() {
+	6 plus do_something call print
+
 	1 while dup 10 <= {
 		dup print
 		1 plus call

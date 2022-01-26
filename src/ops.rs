@@ -427,15 +427,25 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
             }),
 
             TokenKind::Proc => {
-                let name_token = tokenizer.expect_token(TokenKind::Name)?;
-                let name = name_token.data.get_string();
+                let name_token = if tokenizer.peek_kind()? != TokenKind::OpenParenthesis {
+                    Some(tokenizer.expect_token(TokenKind::Name)?)
+                } else {
+                    None
+                };
 
+                let mut depth: usize = 0;
                 let open_paraentheis_token = tokenizer.expect_token(TokenKind::OpenParenthesis)?;
                 let mut parameter_tokens = Vec::new();
-                while tokenizer.peek_kind()? != TokenKind::CloseParenthesis
+                while (depth != 0 || tokenizer.peek_kind()? != TokenKind::CloseParenthesis)
                     && tokenizer.peek_kind()? != TokenKind::EndOfFile
                 {
-                    parameter_tokens.push(tokenizer.next_token()?);
+                    let token = tokenizer.next_token()?;
+                    if token.kind == TokenKind::OpenParenthesis {
+                        depth += 1;
+                    } else if token.kind == TokenKind::CloseParenthesis {
+                        depth -= 1;
+                    }
+                    parameter_tokens.push(token);
                 }
                 let close_parenthesis_token =
                     tokenizer.expect_token(TokenKind::CloseParenthesis)?;
@@ -443,7 +453,7 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                 let mut parameter_ops = Vec::new();
                 compile_ops(
                     &mut TokenArray {
-                        filepath: name_token.location.filepath.clone(),
+                        filepath: token.location.filepath.clone(),
                         tokens: parameter_tokens,
                         position: 0,
                     },
@@ -473,10 +483,17 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                     let open_paraentheis_token =
                         tokenizer.expect_token(TokenKind::OpenParenthesis)?;
                     let mut return_type_tokens = Vec::new();
-                    while tokenizer.peek_kind()? != TokenKind::CloseParenthesis
+                    let mut depth: usize = 0;
+                    while (depth != 0 || tokenizer.peek_kind()? != TokenKind::CloseParenthesis)
                         && tokenizer.peek_kind()? != TokenKind::EndOfFile
                     {
-                        return_type_tokens.push(tokenizer.next_token()?);
+                        let token = tokenizer.next_token()?;
+                        if token.kind == TokenKind::OpenParenthesis {
+                            depth += 1;
+                        } else if token.kind == TokenKind::CloseParenthesis {
+                            depth -= 1;
+                        }
+                        return_type_tokens.push(token);
                     }
                     let close_parenthesis_token =
                         tokenizer.expect_token(TokenKind::CloseParenthesis)?;
@@ -484,7 +501,7 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                     let mut return_type_ops = Vec::new();
                     compile_ops(
                         &mut TokenArray {
-                            filepath: name_token.location.filepath.clone(),
+                            filepath: token.location.filepath.clone(),
                             tokens: return_type_tokens,
                             position: 0,
                         },
@@ -507,19 +524,32 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                     }
                 }
 
-                tokenizer.expect_token(TokenKind::OpenBrace)?;
-                block_stack.push(BlockType::Proc {
-                    jump_past_position: ops.len(),
-                });
+                if let Some(name_token) = name_token {
+                    tokenizer.expect_token(TokenKind::OpenBrace)?;
+                    block_stack.push(BlockType::Proc {
+                        jump_past_position: ops.len(),
+                    });
 
-                scopes.last_mut().unwrap().push((name, ops.len()));
-                scopes.push(Vec::new());
-                ops.push(Op::SkipProc {
-                    location: token.location,
-                    position: 0,
-                    parameters,
-                    return_types,
-                });
+                    scopes
+                        .last_mut()
+                        .unwrap()
+                        .push((name_token.data.get_string(), ops.len()));
+                    scopes.push(Vec::new());
+                    ops.push(Op::SkipProc {
+                        location: token.location,
+                        position: 0,
+                        parameters,
+                        return_types,
+                    });
+                } else {
+                    ops.push(Op::PushType {
+                        location: token.location,
+                        value: Type::Procedure {
+                            parameters,
+                            return_types,
+                        },
+                    })
+                }
             }
 
             TokenKind::CloseBrace => {
