@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::lexer::*;
+use crate::tokenizer::*;
 use crate::types::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -253,13 +253,13 @@ enum BlockType {
     },
 }
 
-pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
+pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(), Error> {
     let mut block_stack = Vec::new();
     let mut scopes = Vec::new();
     scopes.push(Vec::new());
 
     loop {
-        let token = lexer.next_token()?;
+        let token = tokenizer.next_token()?;
         match &token.kind {
             TokenKind::EndOfFile => break,
 
@@ -323,7 +323,7 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                     location: token.location,
                     position: 0,
                 });
-                lexer.expect_token(TokenKind::OpenBrace)?;
+                tokenizer.expect_token(TokenKind::OpenBrace)?;
             }
 
             TokenKind::While => block_stack.push(BlockType::While {
@@ -379,11 +379,11 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
             }),
 
             TokenKind::Proc => {
-                let name = lexer.expect_token(TokenKind::Name)?.data.get_string();
-                lexer.expect_token(TokenKind::OpenParenthesis)?;
+                let name = tokenizer.expect_token(TokenKind::Name)?.data.get_string();
+                tokenizer.expect_token(TokenKind::OpenParenthesis)?;
                 let mut parameters = Vec::new();
-                while lexer.peek_kind()? != TokenKind::CloseParenthesis {
-                    let type_name_token = lexer.expect_token(TokenKind::Name)?;
+                while tokenizer.peek_kind()? != TokenKind::CloseParenthesis {
+                    let type_name_token = tokenizer.expect_token(TokenKind::Name)?;
                     let type_name = type_name_token.data.get_string();
                     match &type_name as &str {
                         "int" => parameters.push(Type::Integer),
@@ -396,10 +396,10 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                         }
                     }
                 }
-                lexer.expect_token(TokenKind::CloseParenthesis)?;
+                tokenizer.expect_token(TokenKind::CloseParenthesis)?;
                 let mut return_types = Vec::new();
-                while lexer.peek_kind()? != TokenKind::OpenBrace {
-                    let type_name_token = lexer.expect_token(TokenKind::Name)?;
+                while tokenizer.peek_kind()? != TokenKind::OpenBrace {
+                    let type_name_token = tokenizer.expect_token(TokenKind::Name)?;
                     let type_name = type_name_token.data.get_string();
                     match &type_name as &str {
                         "int" => return_types.push(Type::Integer),
@@ -412,7 +412,7 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                         }
                     }
                 }
-                lexer.expect_token(TokenKind::OpenBrace)?;
+                tokenizer.expect_token(TokenKind::OpenBrace)?;
                 block_stack.push(BlockType::Proc {
                     jump_past_position: ops.len(),
                 });
@@ -433,8 +433,8 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                     BlockType::Block { position: _ } => {}
 
                     BlockType::If { position } => {
-                        if lexer.peek_kind()? == TokenKind::Else {
-                            let else_token = lexer.next_token()?;
+                        if tokenizer.peek_kind()? == TokenKind::Else {
+                            let else_token = tokenizer.next_token()?;
                             block_stack.push(BlockType::Else {
                                 skip_position: ops.len(),
                             });
@@ -443,7 +443,7 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                                 location: else_token.location.clone(),
                                 position: 0,
                             });
-                            lexer.expect_token(TokenKind::OpenBrace)?;
+                            tokenizer.expect_token(TokenKind::OpenBrace)?;
                         }
 
                         *ops[*position].get_condtional_jump_location_mut() = ops.len();

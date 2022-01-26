@@ -6,12 +6,15 @@ mod common;
 mod execution;
 mod lexer;
 mod ops;
+mod token;
+mod tokenizer;
 mod type_checking;
 mod types;
 
 use crate::execution::*;
 use crate::lexer::*;
 use crate::ops::*;
+use crate::tokenizer::*;
 use crate::type_checking::*;
 
 fn main() {

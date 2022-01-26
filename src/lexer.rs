@@ -1,95 +1,7 @@
 use std::{array::IntoIter, collections::HashMap};
 
 use crate::common::*;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TokenKind {
-    EndOfFile,
-
-    Integer,
-    Name,
-
-    Print,
-    If,
-    Else,
-    While,
-
-    Proc,
-    Call,
-
-    Dup,
-    Drop,
-    Swap,
-
-    OpenParenthesis,
-    CloseParenthesis,
-    OpenBrace,
-    CloseBrace,
-
-    Not,
-
-    Plus,
-    Minus,
-    Asterisk,
-    Slash,
-
-    LessThan,
-    GreaterThan,
-    LessThanEqual,
-    GreaterThanEqual,
-
-    Equal,
-    NotEqual,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TokenData {
-    None,
-    Integer(isize),
-    String(String),
-}
-
-impl TokenData {
-    pub fn get_integer(self: &TokenData) -> isize {
-        if let TokenData::Integer(value) = self {
-            *value
-        } else {
-            unreachable!()
-        }
-    }
-
-    pub fn get_integer_mut(self: &mut TokenData) -> &mut isize {
-        if let TokenData::Integer(value) = self {
-            value
-        } else {
-            unreachable!()
-        }
-    }
-
-    pub fn get_string(self: &TokenData) -> String {
-        if let TokenData::String(value) = self {
-            value.clone()
-        } else {
-            unreachable!()
-        }
-    }
-
-    pub fn get_string_mut(self: &mut TokenData) -> &mut String {
-        if let TokenData::String(value) = self {
-            value
-        } else {
-            unreachable!()
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub location: SourceLocation,
-    pub length: usize,
-    pub data: TokenData,
-}
+use crate::tokenizer::*;
 
 #[derive(Debug, Clone)]
 pub struct Lexer {
@@ -139,6 +51,8 @@ lazy_static::lazy_static! {
             ("drop", TokenKind::Drop),
             ("swap", TokenKind::Swap),
 
+            ("memory", TokenKind::Memory),
+
             ("proc", TokenKind::Proc),
             ("call", TokenKind::Call),
         ]));
@@ -175,8 +89,10 @@ impl Lexer {
         }
         return chr;
     }
+}
 
-    pub fn next_token(self: &mut Lexer) -> Result<Token, Error> {
+impl Tokenizer for Lexer {
+    fn next_token(self: &mut Self) -> Result<Token, Error> {
         loop {
             let start_location = self.location.clone();
             return match self.peek_char() {
@@ -310,27 +226,12 @@ impl Lexer {
         }
     }
 
-    pub fn peek_token(self: &Lexer) -> Result<Token, Error> {
+    fn peek_token(self: &Self) -> Result<Token, Error> {
         let mut lexer = self.clone();
         return lexer.next_token();
     }
 
-    pub fn peek_kind(self: &Lexer) -> Result<TokenKind, Error> {
+    fn peek_kind(self: &Self) -> Result<TokenKind, Error> {
         Ok(self.peek_token()?.kind)
-    }
-
-    pub fn expect_token(self: &mut Lexer, kind: TokenKind) -> Result<Token, Error> {
-        let actual_kind = self.peek_kind()?;
-        if actual_kind != kind {
-            Err(Error {
-                location: self.location.clone(),
-                message: format!(
-                    "Unexpected token '{:?}', expected '{:?}'",
-                    actual_kind, kind
-                ),
-            })
-        } else {
-            self.next_token()
-        }
     }
 }
