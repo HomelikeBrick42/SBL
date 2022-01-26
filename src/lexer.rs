@@ -26,12 +26,12 @@ lazy_static::lazy_static! {
 
             ('<', TokenKind::LessThan),
             ('>', TokenKind::GreaterThan),
-
-            ('=', TokenKind::Equal),
         ]));
 
     static ref LEXER_DOUBLE_CHARS: HashMap<char, HashMap<char, TokenKind>> =
         HashMap::from_iter(IntoIter::new([
+            ('=',  HashMap::from_iter(IntoIter::new([('=', TokenKind::EqualEqual)]))),
+
             ('<',  HashMap::from_iter(IntoIter::new([('=', TokenKind::LessThanEqual)]))),
             ('>',  HashMap::from_iter(IntoIter::new([('=', TokenKind::GreaterThanEqual)]))),
 

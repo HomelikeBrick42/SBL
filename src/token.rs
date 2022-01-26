@@ -40,7 +40,7 @@ pub enum TokenKind {
     LessThanEqual,
     GreaterThanEqual,
 
-    Equal,
+    EqualEqual,
     NotEqual,
 }
 

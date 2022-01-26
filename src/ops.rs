@@ -639,7 +639,7 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                 location: token.location,
             }),
 
-            TokenKind::Equal => ops.push(Op::Equal {
+            TokenKind::EqualEqual => ops.push(Op::Equal {
                 location: token.location,
             }),
 
