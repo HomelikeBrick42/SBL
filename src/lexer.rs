@@ -35,6 +35,8 @@ lazy_static::lazy_static! {
             ('<',  HashMap::from_iter(IntoIter::new([('=', TokenKind::LessThanEqual)]))),
             ('>',  HashMap::from_iter(IntoIter::new([('=', TokenKind::GreaterThanEqual)]))),
 
+            ('-',  HashMap::from_iter(IntoIter::new([('>', TokenKind::RightArrow)]))),
+
             ('!',  HashMap::from_iter(IntoIter::new([('=', TokenKind::NotEqual)]))),
         ]));
 

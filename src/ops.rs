@@ -466,36 +466,44 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                     }
                 }
 
-                let mut return_type_tokens = Vec::new();
-                while tokenizer.peek_kind()? != TokenKind::OpenBrace
-                    && tokenizer.peek_kind()? != TokenKind::EndOfFile
-                {
-                    return_type_tokens.push(tokenizer.next_token()?);
-                }
-
-                let mut return_type_ops = Vec::new();
-                compile_ops(
-                    &mut TokenArray {
-                        filepath: name_token.location.filepath.clone(),
-                        tokens: return_type_tokens,
-                        position: 0,
-                    },
-                    &mut return_type_ops,
-                )?;
-                return_type_ops.push(Op::Exit {
-                    location: close_parenthesis_token.location.clone(),
-                });
-
-                let return_type_stack = run_ops(&return_type_ops);
                 let mut return_types = Vec::new();
-                for value in return_type_stack {
-                    if let Value::Type(value) = value {
-                        return_types.push(value);
-                    } else {
-                        return Err(Error {
-                            location: open_paraentheis_token.location.clone(),
-                            message: format!("Expected type on stack, got {:?}", value),
-                        });
+                if tokenizer.peek_kind()? == TokenKind::RightArrow {
+                    tokenizer.expect_token(TokenKind::RightArrow)?;
+
+                    let open_paraentheis_token =
+                        tokenizer.expect_token(TokenKind::OpenParenthesis)?;
+                    let mut return_type_tokens = Vec::new();
+                    while tokenizer.peek_kind()? != TokenKind::CloseParenthesis
+                        && tokenizer.peek_kind()? != TokenKind::EndOfFile
+                    {
+                        return_type_tokens.push(tokenizer.next_token()?);
+                    }
+                    let close_parenthesis_token =
+                        tokenizer.expect_token(TokenKind::CloseParenthesis)?;
+
+                    let mut return_type_ops = Vec::new();
+                    compile_ops(
+                        &mut TokenArray {
+                            filepath: name_token.location.filepath.clone(),
+                            tokens: return_type_tokens,
+                            position: 0,
+                        },
+                        &mut return_type_ops,
+                    )?;
+                    return_type_ops.push(Op::Exit {
+                        location: close_parenthesis_token.location.clone(),
+                    });
+
+                    let return_type_stack = run_ops(&return_type_ops);
+                    for value in return_type_stack {
+                        if let Value::Type(value) = value {
+                            return_types.push(value);
+                        } else {
+                            return Err(Error {
+                                location: open_paraentheis_token.location.clone(),
+                                message: format!("Expected type on stack, got {:?}", value),
+                            });
+                        }
                     }
                 }
 

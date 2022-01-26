@@ -28,6 +28,8 @@ pub enum TokenKind {
 
     Not,
 
+    RightArrow,
+
     Plus,
     Minus,
     Asterisk,

@@ -1,4 +1,4 @@
-proc plus(int int) int {
+proc plus(int int) -> (int) {
 	+
 }
 
