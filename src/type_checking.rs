@@ -62,6 +62,7 @@ struct Context {
     pub ip: usize,
     pub stack: Vec<(Type, SourceLocation)>,
     pub condtional_jump_list: Vec<(usize, JumpType)>,
+    pub procedure_info: Option<Type>,
 }
 
 pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
@@ -70,6 +71,7 @@ pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
         ip: 0,
         stack: Vec::new(),
         condtional_jump_list: Vec::new(),
+        procedure_info: Option::None,
     });
 
     while contexts.len() > 0 {
@@ -85,6 +87,27 @@ pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
 
                 contexts.pop().unwrap();
                 continue;
+            }
+
+            Op::PushFunctionPointer { location, value } => {
+                let (parameters, return_types) = if let Op::SkipProc {
+                    location: _,
+                    position: _,
+                    parameters,
+                    return_types,
+                } = &ops[value - 1]
+                {
+                    (parameters, return_types)
+                } else {
+                    unreachable!()
+                };
+                context.stack.push((
+                    Type::Procedure {
+                        parameters: parameters.clone(),
+                        return_types: return_types.clone(),
+                    },
+                    location.clone(),
+                ));
             }
 
             Op::PushInteger { location, value: _ } => {
@@ -173,6 +196,7 @@ pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
                         ip: context.ip + 1,
                         stack: context.stack.clone(),
                         condtional_jump_list: new_list,
+                        procedure_info: context.procedure_info.clone(),
                     };
 
                     context
@@ -191,7 +215,83 @@ pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
                 let typ = context.stack[context.stack.len() - 1].clone().0;
                 expect_types(&mut context.stack, location, &[typ.clone()])?;
             }
+
+            Op::SkipProc {
+                location,
+                position,
+                parameters,
+                return_types,
+            } => {
+                let procedure_type = Type::Procedure {
+                    parameters: parameters.clone(),
+                    return_types: return_types.clone(),
+                };
+
+                let mut stack = Vec::new();
+                for parameter in parameters {
+                    stack.push((parameter.clone(), location.clone()));
+                }
+
+                let new_context = Context {
+                    ip: context.ip + 1,
+                    stack,
+                    condtional_jump_list: Vec::new(),
+                    procedure_info: Option::Some(procedure_type),
+                };
+
+                context.ip = *position;
+
+                contexts.push(new_context);
+
+                continue;
+            }
+
+            Op::Call { location } => {
+                expect_type_count(&context.stack, location, 1)?;
+                let (typ, typ_location) = context.stack.pop().unwrap();
+                let (parameters, return_types) = match &typ {
+                    Type::Procedure {
+                        parameters,
+                        return_types,
+                    } => (parameters, return_types),
+
+                    _ => {
+                        return Err(Error {
+                            location: typ_location,
+                            message: format!("Expected procedure type, but got type {:?}", typ),
+                        })
+                    }
+                };
+                expect_types(&mut context.stack, location, &parameters)?;
+                for typ in return_types {
+                    context.stack.push((typ.clone(), location.clone()));
+                }
+            }
+
+            Op::Return { location } => {
+                let return_types = match &context.procedure_info.as_ref().unwrap() {
+                    Type::Procedure {
+                        parameters: _,
+                        return_types,
+                    } => return_types,
+                    _ => unreachable!(),
+                };
+
+                expect_types(&mut context.stack, location, return_types)?;
+                if context.stack.len() > 0 {
+                    return Err(Error {
+                        location: context.stack.pop().unwrap().1.clone(),
+                        message: format!(
+                            "Unexpected types on the stack at the end of the procedure"
+                        ),
+                    });
+                }
+
+                contexts.pop().unwrap();
+                continue;
+            }
         }
+
         contexts.last_mut().unwrap().ip += 1;
     }
 

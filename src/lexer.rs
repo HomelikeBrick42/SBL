@@ -14,9 +14,14 @@ pub enum TokenKind {
     Else,
     While,
 
+    Proc,
+    Call,
+
     Dup,
     Drop,
 
+    OpenParenthesis,
+    CloseParenthesis,
     OpenBrace,
     CloseBrace,
 
@@ -94,6 +99,8 @@ pub struct Lexer {
 lazy_static::lazy_static! {
     static ref LEXER_SINGLE_CHARS: HashMap<char, TokenKind> =
         HashMap::from_iter(IntoIter::new([
+            ('(', TokenKind::OpenParenthesis),
+            (')', TokenKind::CloseParenthesis),
             ('{', TokenKind::OpenBrace),
             ('}', TokenKind::CloseBrace),
 
@@ -129,6 +136,9 @@ lazy_static::lazy_static! {
 
             ("dup", TokenKind::Dup),
             ("drop", TokenKind::Drop),
+
+            ("proc", TokenKind::Proc),
+            ("call", TokenKind::Call),
         ]));
 }
 
