@@ -6,8 +6,10 @@ proc do_something(int proc(int int) -> (int)) -> (int) {
 	5 swap call
 }
 
+const value(3 3 +)
+
 proc main() {
-	6 plus do_something call print
+	value plus do_something call print
 
 	1 while dup 10 <= {
 		dup print

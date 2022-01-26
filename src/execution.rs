@@ -56,6 +56,10 @@ pub fn run_ops(ops: &[Op]) -> Vec<Value> {
                 stack.push(Value::Type(value.clone()));
             }
 
+            Op::PushBool { location: _, value } => {
+                stack.push(Value::Bool(*value));
+            }
+
             Op::PushFunctionPointer { location: _, value } => {
                 stack.push(Value::FunctionPointer(*value))
             }

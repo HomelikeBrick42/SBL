@@ -16,6 +16,10 @@ pub enum Op {
         location: SourceLocation,
         value: Type,
     },
+    PushBool {
+        location: SourceLocation,
+        value: bool,
+    },
     PushInteger {
         location: SourceLocation,
         value: isize,
@@ -92,6 +96,7 @@ impl Op {
         match self {
             Op::Exit { location } => location.clone(),
             Op::PushInteger { location, value: _ } => location.clone(),
+            Op::PushBool { location, value: _ } => location.clone(),
             Op::PushType { location, value: _ } => location.clone(),
             Op::PushFunctionPointer { location, value: _ } => location.clone(),
             Op::AddInteger { location } => location.clone(),
@@ -125,6 +130,22 @@ impl Op {
             } => location.clone(),
             Op::Call { location } => location.clone(),
             Op::Return { location } => location.clone(),
+        }
+    }
+
+    pub fn get_push_bool_value(self: &Op) -> bool {
+        if let Op::PushBool { location: _, value } = self {
+            *value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_push_bool_value_mut(self: &mut Op) -> &mut bool {
+        if let Op::PushBool { location: _, value } = self {
+            value
+        } else {
+            unreachable!()
         }
     }
 
@@ -272,6 +293,11 @@ enum BlockType {
     },
 }
 
+enum Decl {
+    Procedure { position: usize },
+    Const { value_push_ops: Vec<Op> },
+}
+
 pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(), Error> {
     let mut block_stack = Vec::new();
     let mut scopes = Vec::new();
@@ -322,21 +348,29 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                 }
                 if !found {
                     for scope in scopes.iter().rev() {
-                        for (decl_name, position) in scope.iter().rev() {
+                        for (decl_name, decl) in scope.iter().rev() {
                             if &name == decl_name {
-                                match &ops[*position] {
-                                    Op::SkipProc {
-                                        location: _,
-                                        position: _,
-                                        parameters: _,
-                                        return_types: _,
-                                    } => {
-                                        ops.push(Op::PushFunctionPointer {
-                                            location: token.location.clone(),
-                                            value: position + 1,
-                                        });
+                                match decl {
+                                    Decl::Const { value_push_ops } => {
+                                        for op in value_push_ops {
+                                            ops.push(op.clone());
+                                        }
                                     }
-                                    _ => unreachable!(),
+
+                                    Decl::Procedure { position } => match &ops[*position] {
+                                        Op::SkipProc {
+                                            location: _,
+                                            position: _,
+                                            parameters: _,
+                                            return_types: _,
+                                        } => {
+                                            ops.push(Op::PushFunctionPointer {
+                                                location: token.location.clone(),
+                                                value: position + 1,
+                                            });
+                                        }
+                                        _ => unreachable!(),
+                                    },
                                 }
                                 found = true;
                                 break;
@@ -381,6 +415,74 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
             TokenKind::Call => ops.push(Op::Call {
                 location: token.location,
             }),
+
+            TokenKind::Const => {
+                let name = tokenizer.expect_token(TokenKind::Name)?.data.get_string();
+                let mut depth: usize = 0;
+                tokenizer.expect_token(TokenKind::OpenParenthesis)?;
+                let mut tokens = Vec::new();
+                while (depth != 0 || tokenizer.peek_kind()? != TokenKind::CloseParenthesis)
+                    && tokenizer.peek_kind()? != TokenKind::EndOfFile
+                {
+                    let token = tokenizer.next_token()?;
+                    if token.kind == TokenKind::OpenParenthesis {
+                        depth += 1;
+                    } else if token.kind == TokenKind::CloseParenthesis {
+                        depth -= 1;
+                    }
+                    tokens.push(token);
+                }
+                let close_brace_token = tokenizer.expect_token(TokenKind::CloseParenthesis)?;
+
+                let mut ops = Vec::new();
+                compile_ops(
+                    &mut TokenArray {
+                        filepath: token.location.filepath.clone(),
+                        tokens: tokens,
+                        position: 0,
+                    },
+                    &mut ops,
+                )?;
+                ops.push(Op::Exit {
+                    location: close_brace_token.location.clone(),
+                });
+
+                let values = run_ops(&ops);
+
+                let mut push_ops = Vec::new();
+                for value in values {
+                    match &value {
+                        Value::Integer(value) => push_ops.push(Op::PushInteger {
+                            location: token.location.clone(),
+                            value: *value,
+                        }),
+
+                        Value::Bool(value) => push_ops.push(Op::PushBool {
+                            location: token.location.clone(),
+                            value: *value,
+                        }),
+
+                        Value::Type(value) => push_ops.push(Op::PushType {
+                            location: token.location.clone(),
+                            value: value.clone(),
+                        }),
+
+                        Value::FunctionPointer(_value) => {
+                            return Err(Error {
+                                location: token.location.clone(),
+                                message: format!("Internal Compiler Error: cannot have a constants value be a function pointer"),
+                            })
+                        }
+                    }
+                }
+
+                scopes.last_mut().unwrap().push((
+                    name,
+                    Decl::Const {
+                        value_push_ops: push_ops,
+                    },
+                ));
+            }
 
             TokenKind::OpenBrace => {
                 let sucess = if let Some(block) = block_stack.last() {
@@ -530,10 +632,12 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                         jump_past_position: ops.len(),
                     });
 
-                    scopes
-                        .last_mut()
-                        .unwrap()
-                        .push((name_token.data.get_string(), ops.len()));
+                    scopes.last_mut().unwrap().push((
+                        name_token.data.get_string(),
+                        Decl::Procedure {
+                            position: ops.len(),
+                        },
+                    ));
                     scopes.push(Vec::new());
                     ops.push(Op::SkipProc {
                         location: token.location,

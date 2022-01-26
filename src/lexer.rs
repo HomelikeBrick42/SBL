@@ -49,6 +49,8 @@ lazy_static::lazy_static! {
 
             ("while", TokenKind::While),
 
+            ("const", TokenKind::Const),
+
             ("dup", TokenKind::Dup),
             ("drop", TokenKind::Drop),
             ("swap", TokenKind::Swap),

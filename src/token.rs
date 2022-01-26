@@ -8,9 +8,13 @@ pub enum TokenKind {
     Name,
 
     Print,
+
     If,
     Else,
+
     While,
+
+    Const,
 
     Proc,
     Call,
