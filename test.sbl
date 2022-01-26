@@ -1,4 +1,4 @@
-proc plus(int int) -> (int) {
+proc add(int int) -> (int) {
 	+
 }
 
@@ -9,11 +9,11 @@ proc do_something(int proc(int int) -> (int)) -> (int) {
 const value(3 3 +)
 
 proc main() {
-	value plus do_something call print
+	value add do_something call print
 
 	1 while dup 10 <= {
 		dup print
-		1 plus call
+		1 add call
 	} drop
 }
 
