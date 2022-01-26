@@ -268,7 +268,6 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
             }
 
             TokenKind::Name => {
-                println!("{:?}", scopes);
                 let name = token.data.get_string();
                 let mut found = false;
                 for scope in scopes.iter().rev() {
