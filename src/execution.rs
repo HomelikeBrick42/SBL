@@ -1,13 +1,23 @@
 use crate::ops::*;
+use crate::types::*;
 
 #[derive(Debug, Clone, PartialEq)]
-enum Value {
+pub enum Value {
+    Type(Type),
     Integer(isize),
     Bool(bool),
     FunctionPointer(usize),
 }
 
 impl Value {
+    fn typ(self: Value) -> Type {
+        if let Value::Type(value) = self {
+            value.clone()
+        } else {
+            unreachable!()
+        }
+    }
+
     fn integer(self: Value) -> isize {
         if let Value::Integer(value) = self {
             value
@@ -33,7 +43,7 @@ impl Value {
     }
 }
 
-pub fn run_ops(ops: &[Op]) {
+pub fn run_ops(ops: &[Op]) -> Vec<Value> {
     let mut ip = 0;
     let mut stack = Vec::new();
     let mut return_stack = Vec::new();
@@ -41,6 +51,10 @@ pub fn run_ops(ops: &[Op]) {
     loop {
         match &ops[ip] {
             Op::Exit { location: _ } => break,
+
+            Op::PushType { location: _, value } => {
+                stack.push(Value::Type(value.clone()));
+            }
 
             Op::PushFunctionPointer { location: _, value } => {
                 stack.push(Value::FunctionPointer(*value))
@@ -98,6 +112,7 @@ pub fn run_ops(ops: &[Op]) {
 
             Op::Equal { location: _ } => {
                 let value = match stack.pop().unwrap() {
+                    Value::Type(value) => value == stack.pop().unwrap().typ(),
                     Value::Integer(value) => value == stack.pop().unwrap().integer(),
                     Value::Bool(value) => value == stack.pop().unwrap().bool(),
                     Value::FunctionPointer(value) => {
@@ -109,6 +124,7 @@ pub fn run_ops(ops: &[Op]) {
 
             Op::NotEqual { location: _ } => {
                 let value = match stack.pop().unwrap() {
+                    Value::Type(value) => value != stack.pop().unwrap().typ(),
                     Value::Integer(value) => value != stack.pop().unwrap().integer(),
                     Value::Bool(value) => value != stack.pop().unwrap().bool(),
                     Value::FunctionPointer(value) => {
@@ -160,6 +176,7 @@ pub fn run_ops(ops: &[Op]) {
 
             Op::Print { location: _ } => {
                 match stack.pop().unwrap() {
+                    Value::Type(value) => println!("{:?}", value),
                     Value::Integer(value) => println!("{}", value),
                     Value::Bool(value) => println!("{}", value),
                     Value::FunctionPointer(value) => println!("{}", value),
@@ -190,4 +207,6 @@ pub fn run_ops(ops: &[Op]) {
         }
         ip += 1;
     }
+
+    return stack;
 }

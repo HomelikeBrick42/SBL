@@ -89,6 +89,10 @@ pub fn type_check_ops(ops: &[Op]) -> Result<(), Error> {
                 continue;
             }
 
+            Op::PushType { location, value: _ } => {
+                context.stack.push((Type::Type, location.clone()));
+            }
+
             Op::PushFunctionPointer { location, value } => {
                 let (parameters, return_types) = if let Op::SkipProc {
                     location: _,

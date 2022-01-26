@@ -1,5 +1,6 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
+    Type,
     Integer,
     Bool,
     Procedure {

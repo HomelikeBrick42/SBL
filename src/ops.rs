@@ -1,4 +1,5 @@
 use crate::common::*;
+use crate::execution::*;
 use crate::tokenizer::*;
 use crate::types::*;
 
@@ -10,6 +11,10 @@ pub enum Op {
     PushFunctionPointer {
         location: SourceLocation,
         value: usize,
+    },
+    PushType {
+        location: SourceLocation,
+        value: Type,
     },
     PushInteger {
         location: SourceLocation,
@@ -87,6 +92,7 @@ impl Op {
         match self {
             Op::Exit { location } => location.clone(),
             Op::PushInteger { location, value: _ } => location.clone(),
+            Op::PushType { location, value: _ } => location.clone(),
             Op::PushFunctionPointer { location, value: _ } => location.clone(),
             Op::AddInteger { location } => location.clone(),
             Op::SubtractInteger { location } => location.clone(),
@@ -148,6 +154,22 @@ impl Op {
 
     pub fn get_push_function_pointer_value_mut(self: &mut Op) -> &mut usize {
         if let Op::PushFunctionPointer { location: _, value } = self {
+            value
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_push_type_value(self: &Op) -> Type {
+        if let Op::PushType { location: _, value } = self {
+            value.clone()
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn get_push_type_value_mut(self: &mut Op) -> &mut Type {
+        if let Op::PushType { location: _, value } = self {
             value
         } else {
             unreachable!()
@@ -232,9 +254,6 @@ impl Op {
 }
 
 enum BlockType {
-    Block {
-        position: usize,
-    },
     If {
         position: usize,
     },
@@ -274,29 +293,58 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
             TokenKind::Name => {
                 let name = token.data.get_string();
                 let mut found = false;
-                for scope in scopes.iter().rev() {
-                    for (decl_name, position) in scope.iter().rev() {
-                        if &name == decl_name {
-                            match &ops[*position] {
-                                Op::SkipProc {
-                                    location: _,
-                                    position: _,
-                                    parameters: _,
-                                    return_types: _,
-                                } => {
-                                    ops.push(Op::PushFunctionPointer {
-                                        location: token.location.clone(),
-                                        value: position + 1,
-                                    });
+                match &name as &str {
+                    "int" => {
+                        ops.push(Op::PushType {
+                            location: token.location.clone(),
+                            value: Type::Integer,
+                        });
+                        found = true;
+                    }
+
+                    "bool" => {
+                        ops.push(Op::PushType {
+                            location: token.location.clone(),
+                            value: Type::Bool,
+                        });
+                        found = true;
+                    }
+
+                    "type" => {
+                        ops.push(Op::PushType {
+                            location: token.location.clone(),
+                            value: Type::Type,
+                        });
+                        found = true;
+                    }
+
+                    _ => (),
+                }
+                if !found {
+                    for scope in scopes.iter().rev() {
+                        for (decl_name, position) in scope.iter().rev() {
+                            if &name == decl_name {
+                                match &ops[*position] {
+                                    Op::SkipProc {
+                                        location: _,
+                                        position: _,
+                                        parameters: _,
+                                        return_types: _,
+                                    } => {
+                                        ops.push(Op::PushFunctionPointer {
+                                            location: token.location.clone(),
+                                            value: position + 1,
+                                        });
+                                    }
+                                    _ => unreachable!(),
                                 }
-                                _ => unreachable!(),
+                                found = true;
+                                break;
                             }
-                            found = true;
+                        }
+                        if found {
                             break;
                         }
-                    }
-                    if found {
-                        break;
                     }
                 }
                 if !found {
@@ -359,10 +407,10 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                     false
                 };
                 if !sucess {
-                    block_stack.push(BlockType::Block {
-                        position: ops.len(),
+                    return Err(Error {
+                        location: token.location.clone(),
+                        message: format!("Unexpected token '{:?}'", token.kind),
                     });
-                    scopes.push(Vec::new());
                 }
             }
 
@@ -379,43 +427,83 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
             }),
 
             TokenKind::Proc => {
-                let name = tokenizer.expect_token(TokenKind::Name)?.data.get_string();
-                tokenizer.expect_token(TokenKind::OpenParenthesis)?;
+                let name_token = tokenizer.expect_token(TokenKind::Name)?;
+                let name = name_token.data.get_string();
+
+                let open_paraentheis_token = tokenizer.expect_token(TokenKind::OpenParenthesis)?;
+                let mut parameter_tokens = Vec::new();
+                while tokenizer.peek_kind()? != TokenKind::CloseParenthesis
+                    && tokenizer.peek_kind()? != TokenKind::EndOfFile
+                {
+                    parameter_tokens.push(tokenizer.next_token()?);
+                }
+                let close_parenthesis_token =
+                    tokenizer.expect_token(TokenKind::CloseParenthesis)?;
+
+                let mut parameter_ops = Vec::new();
+                compile_ops(
+                    &mut TokenArray {
+                        filepath: name_token.location.filepath.clone(),
+                        tokens: parameter_tokens,
+                        position: 0,
+                    },
+                    &mut parameter_ops,
+                )?;
+                parameter_ops.push(Op::Exit {
+                    location: close_parenthesis_token.location.clone(),
+                });
+
+                let parameter_stack = run_ops(&parameter_ops);
                 let mut parameters = Vec::new();
-                while tokenizer.peek_kind()? != TokenKind::CloseParenthesis {
-                    let type_name_token = tokenizer.expect_token(TokenKind::Name)?;
-                    let type_name = type_name_token.data.get_string();
-                    match &type_name as &str {
-                        "int" => parameters.push(Type::Integer),
-                        "bool" => parameters.push(Type::Bool),
-                        _ => {
-                            return Err(Error {
-                                location: type_name_token.location,
-                                message: format!("Cannot find type called '{}'", type_name),
-                            })
-                        }
+                for value in parameter_stack {
+                    if let Value::Type(value) = value {
+                        parameters.push(value);
+                    } else {
+                        return Err(Error {
+                            location: open_paraentheis_token.location.clone(),
+                            message: format!("Expected type on stack, got {:?}", value),
+                        });
                     }
                 }
-                tokenizer.expect_token(TokenKind::CloseParenthesis)?;
+
+                let mut return_type_tokens = Vec::new();
+                while tokenizer.peek_kind()? != TokenKind::OpenBrace
+                    && tokenizer.peek_kind()? != TokenKind::EndOfFile
+                {
+                    return_type_tokens.push(tokenizer.next_token()?);
+                }
+
+                let mut return_type_ops = Vec::new();
+                compile_ops(
+                    &mut TokenArray {
+                        filepath: name_token.location.filepath.clone(),
+                        tokens: return_type_tokens,
+                        position: 0,
+                    },
+                    &mut return_type_ops,
+                )?;
+                return_type_ops.push(Op::Exit {
+                    location: close_parenthesis_token.location.clone(),
+                });
+
+                let return_type_stack = run_ops(&return_type_ops);
                 let mut return_types = Vec::new();
-                while tokenizer.peek_kind()? != TokenKind::OpenBrace {
-                    let type_name_token = tokenizer.expect_token(TokenKind::Name)?;
-                    let type_name = type_name_token.data.get_string();
-                    match &type_name as &str {
-                        "int" => return_types.push(Type::Integer),
-                        "bool" => return_types.push(Type::Bool),
-                        _ => {
-                            return Err(Error {
-                                location: type_name_token.location,
-                                message: format!("Cannot find type called '{}'", type_name),
-                            })
-                        }
+                for value in return_type_stack {
+                    if let Value::Type(value) = value {
+                        return_types.push(value);
+                    } else {
+                        return Err(Error {
+                            location: open_paraentheis_token.location.clone(),
+                            message: format!("Expected type on stack, got {:?}", value),
+                        });
                     }
                 }
+
                 tokenizer.expect_token(TokenKind::OpenBrace)?;
                 block_stack.push(BlockType::Proc {
                     jump_past_position: ops.len(),
                 });
+
                 scopes.last_mut().unwrap().push((name, ops.len()));
                 scopes.push(Vec::new());
                 ops.push(Op::SkipProc {
@@ -430,8 +518,6 @@ pub fn compile_ops(tokenizer: &mut dyn Tokenizer, ops: &mut Vec<Op>) -> Result<(
                 let block_type = block_stack.pop().unwrap();
                 scopes.pop().unwrap();
                 match &block_type {
-                    BlockType::Block { position: _ } => {}
-
                     BlockType::If { position } => {
                         if tokenizer.peek_kind()? == TokenKind::Else {
                             let else_token = tokenizer.next_token()?;

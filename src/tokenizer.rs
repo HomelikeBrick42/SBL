@@ -22,7 +22,8 @@ pub trait Tokenizer {
     }
 }
 
-struct TokenArray {
+#[derive(Debug, Clone, PartialEq)]
+pub struct TokenArray {
     pub filepath: String,
     pub tokens: Vec<Token>,
     pub position: usize,
@@ -56,9 +57,10 @@ impl TokenArray {
 
 impl Tokenizer for TokenArray {
     fn next_token(self: &mut Self) -> Result<Token, Error> {
-        self.position += 1;
         if self.position < self.tokens.len() {
-            Ok(self.tokens[self.position - 1].clone())
+            let token = self.tokens[self.position].clone();
+            self.position += 1;
+            Ok(token)
         } else {
             Ok(self.get_end_of_file_token())
         }
