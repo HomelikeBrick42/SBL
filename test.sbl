@@ -2,7 +2,11 @@ proc plus(int int) int {
 	+
 }
 
-1 while dup 10 <= {
-	dup print
-	1 plus call
-} drop
+proc main() {
+	1 while dup 10 <= {
+		dup print
+		1 plus call
+	} drop
+}
+
+main call

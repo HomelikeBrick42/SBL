@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::common::*;
 use crate::lexer::*;
 use crate::types::*;
@@ -270,6 +268,7 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
             }
 
             TokenKind::Name => {
+                println!("{:?}", scopes);
                 let name = token.data.get_string();
                 let mut found = false;
                 for scope in scopes.iter().rev() {
@@ -348,6 +347,7 @@ pub fn compile_ops(lexer: &mut Lexer, ops: &mut Vec<Op>) -> Result<(), Error> {
                             location: token.location.clone(),
                             position: 0,
                         });
+                        scopes.push(Vec::new());
                         true
                     } else {
                         false
