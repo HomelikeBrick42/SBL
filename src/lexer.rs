@@ -1,7 +1,10 @@
 use std::{array::IntoIter, collections::HashMap};
 
-use crate::common::*;
-use crate::tokenizer::*;
+use crate::{
+    common::{Error, SourceLocation},
+    token::{Token, TokenData, TokenKind},
+    tokenizer::Tokenizer,
+};
 
 #[derive(Debug, Clone)]
 pub struct Lexer {
@@ -23,6 +26,8 @@ lazy_static::lazy_static! {
             ('-', TokenKind::Minus),
             ('*', TokenKind::Asterisk),
             ('/', TokenKind::Slash),
+
+            ('=', TokenKind::Equal),
 
             ('<', TokenKind::LessThan),
             ('>', TokenKind::GreaterThan),

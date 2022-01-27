@@ -1,5 +1,7 @@
-pub use crate::common::*;
-pub use crate::token::*;
+use crate::{
+    common::{Error, SourceLocation},
+    token::{Token, TokenData, TokenKind},
+};
 
 pub trait Tokenizer {
     fn next_token(self: &mut Self) -> Result<Token, Error>;

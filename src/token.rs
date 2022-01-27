@@ -1,4 +1,4 @@
-use crate::common::*;
+use crate::common::SourceLocation;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
@@ -44,6 +44,7 @@ pub enum TokenKind {
     LessThanEqual,
     GreaterThanEqual,
 
+    Equal,
     EqualEqual,
     NotEqual,
 }

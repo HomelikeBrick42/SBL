@@ -1,20 +1,18 @@
-proc add(int int) -> (int) {
-	+
+proc test() {
+	5 6 == if {
+		42 print
+	} else {
+		5 6 - print
+	}
 }
 
-proc do_something(int proc(int int) -> (int)) -> (int) {
-	5 swap call
+1 1 == if {
+	1 2 + print
 }
 
-const value(3 3 +)
+1 while dup 5 <= {
+	dup print
+	1 +
+} drop
 
-proc main() {
-	value add do_something call print
-
-	1 while dup 10 <= {
-		dup print
-		1 add call
-	} drop
-}
-
-main call
+test call

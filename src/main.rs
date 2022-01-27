@@ -2,20 +2,16 @@
 
 use std::{env::args, process::exit};
 
+use compile::compile_ir;
+
+use crate::lexer::Lexer;
+
 mod common;
-mod execution;
+mod compile;
+mod ir;
 mod lexer;
-mod ops;
 mod token;
 mod tokenizer;
-mod type_checking;
-mod types;
-
-use crate::execution::*;
-use crate::lexer::*;
-use crate::ops::*;
-use crate::tokenizer::*;
-use crate::type_checking::*;
 
 fn main() {
     let args: Vec<String> = args().collect();
@@ -32,9 +28,9 @@ fn main() {
     });
 
     let mut lexer = Lexer::new(filepath.clone(), &source as &str);
-    let mut ops = Vec::new();
+    let mut procedures = Vec::new();
 
-    compile_ops(&mut lexer, &mut ops).unwrap_or_else(|error| {
+    compile_ir(&mut lexer, &mut procedures).unwrap_or_else(|error| {
         eprintln!(
             "{}:{}:{}: {}",
             error.location.filepath, error.location.line, error.location.column, error.message
@@ -42,35 +38,11 @@ fn main() {
         exit(1)
     });
 
-    ops.push(Op::Exit {
-        location: lexer
-            .expect_token(TokenKind::EndOfFile)
-            .unwrap_or_else(|error| {
-                eprintln!(
-                    "{}:{}:{}: {}",
-                    error.location.filepath,
-                    error.location.line,
-                    error.location.column,
-                    error.message
-                );
-                exit(1)
-            })
-            .location,
-    });
-
-    /*
-    for (index, op) in ops.iter().enumerate() {
-        println!("{} = {:?}", index, op);
+    for (procedure_index, procedure) in procedures.iter().enumerate() {
+        println!("Procedure: {}", procedure_index);
+        for (ir_index, ir) in procedure.iter().enumerate() {
+            println!("    {} = {:?}", ir_index, ir.kind);
+        }
+        println!();
     }
-    */
-
-    type_check_ops(&ops).unwrap_or_else(|error| {
-        eprintln!(
-            "{}:{}:{}: {}",
-            error.location.filepath, error.location.line, error.location.column, error.message
-        );
-        exit(1)
-    });
-
-    run_ops(&ops);
 }
